@@ -22,6 +22,15 @@
     ::-webkit-scrollbar-thumb { background: #D32027; border-radius: 3px; }
     input, textarea, select { font-size: 16px !important; }
     button { -webkit-appearance: none; }
+    /* ── mobile bottom nav ── */
+    .bnav { display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 150;
+      background: #0F0F23; border-top: 2px solid #D32027;
+      padding: 6px 0 env(safe-area-inset-bottom, 6px); }
+    @media(max-width:700px) {
+      .bnav { display: flex; }
+      body { padding-bottom: 64px; }
+      .hero-compact { min-height: 46vh !important; padding-top: 28px !important; padding-bottom: 28px !important; }
+    }
   </style>
 </head>
 <body>
@@ -176,10 +185,31 @@ function DS({ h = 4, mt = 0, mb = 0 }) {
   );
 }
 
+// ═══ BOTTOM NAV (mobile) ═══
+function MobileNav({ active, onNav }) {
+  const items = [
+    { id: 'inicio',        icon: '⌂', l: 'Inicio'     },
+    { id: 'calendario',    icon: '◫', l: 'Eventos'    },
+    { id: 'areas',         icon: '◈', l: 'Áreas'      },
+    { id: 'institucional', icon: '⊕', l: 'Nosotros'   },
+  ];
+  return (
+    <div className="bnav">
+      {items.map(it => (
+        <button key={it.id} onClick={() => onNav(it.id)} style={{ flex: 1, background: 'none', border: 'none', color: active === it.id ? C.red : 'rgba(255,255,255,0.38)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '4px 0', cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: '0.46rem', fontWeight: 600, letterSpacing: 1.5, textTransform: 'uppercase', transition: 'color 0.15s' }}>
+          <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>{it.icon}</span>
+          {it.l}
+          {active === it.id && <div style={{ width: 16, height: 2, background: C.red, borderRadius: 1, marginTop: 1 }} />}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ═══ NAV ═══
 function Nav({ active, onNav, synced }) {
   const [open, setOpen] = useState(false);
-  const items = [{ id: 'inicio', l: 'Inicio' }, { id: 'institucional', l: 'Institucional' }, { id: 'calendario', l: 'Calendario' }, { id: 'areas', l: 'Áreas' }];
+  const items = [{ id: 'inicio', l: 'Inicio' }, { id: 'calendario', l: 'Calendario' }, { id: 'areas', l: 'Áreas' }, { id: 'institucional', l: 'Institucional' }];
   return (
     <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: C.dark3, borderBottom: `3px solid ${C.red}`, fontFamily: "'Oswald', sans-serif" }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
@@ -218,9 +248,10 @@ function Nav({ active, onNav, synced }) {
 // ═══ HERO ═══
 function Hero({ onNav }) {
   return (
-    <section style={{ position: 'relative', background: C.dark3, minHeight: '68vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: '40px 16px' }}>
-      <div style={{ position: 'absolute', inset: 0, opacity: 0.045, backgroundImage: `radial-gradient(ellipse 120% 60% at 50% 110%, ${C.red}33 0%, transparent 70%), repeating-linear-gradient(45deg, ${C.white} 0, ${C.white} 1px, transparent 1px, transparent 50px), repeating-linear-gradient(-45deg, ${C.white} 0, ${C.white} 1px, transparent 1px, transparent 50px)` }} />
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '35%', background: `linear-gradient(to top, ${C.red}14, transparent)` }} />
+    <section className="hero-compact" style={{ position: 'relative', background: C.dark3, minHeight: '68vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: '40px 16px' }}>
+      <div style={{ position: 'absolute', inset: 0, backgroundImage: `radial-gradient(ellipse 110% 55% at 50% 110%, ${C.red}26 0%, transparent 65%)` }} />
+      <div style={{ position: 'absolute', inset: 0, opacity: 0.028, backgroundImage: `repeating-linear-gradient(-58deg, ${C.white} 0, ${C.white} 1px, transparent 1px, transparent 88px)` }} />
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '30%', background: `linear-gradient(to top, ${C.red}12, transparent)` }} />
       <div style={{ position: 'absolute', top: 0, left: 0, width: 4, height: '100%', background: `linear-gradient(to bottom, ${C.red}, ${C.redDark})` }} />
       <div style={{ position: 'absolute', top: 0, right: 0, width: 4, height: '100%', background: `linear-gradient(to bottom, ${C.red}, ${C.redDark})` }} />
       <div style={{ position: 'relative', textAlign: 'center', maxWidth: 620, width: '100%' }}>
@@ -417,10 +448,10 @@ function Cal({ events, addEvent, removeEvent }) {
         <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.58rem', fontWeight: 600, letterSpacing: 5, textTransform: 'uppercase', color: C.grayMid, marginBottom: 6 }}>Charlas & Eventos</div>
         <h2 style={{ fontFamily: "'Oswald', sans-serif", fontSize: 'clamp(1.4rem,5vw,2.1rem)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 3, color: C.white, margin: '0 0 8px', textAlign: 'center' }}>Calen<span style={{ color: C.red }}>dario</span></h2>
         <DS h={3} mb={16} />
-        <div style={{ display: 'flex', gap: 5, marginBottom: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <button onClick={() => setFilter('todas')} style={{ background: filter === 'todas' ? C.white : 'transparent', color: filter === 'todas' ? C.dark : 'rgba(255,255,255,0.55)', border: `1px solid ${filter === 'todas' ? C.white : 'rgba(255,255,255,0.15)'}`, padding: '5px 14px', borderRadius: 14, cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: '0.66rem', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>Todas</button>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <button onClick={() => setFilter('todas')} style={{ background: filter === 'todas' ? C.white : 'rgba(255,255,255,0.07)', color: filter === 'todas' ? C.dark : 'rgba(255,255,255,0.65)', border: `1px solid ${filter === 'todas' ? C.white : 'rgba(255,255,255,0.15)'}`, padding: mob ? '8px 18px' : '5px 14px', borderRadius: 20, cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: mob ? '0.72rem' : '0.66rem', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>Todas</button>
           {AREAS.map(a => (
-            <button key={a.id} onClick={() => setFilter(a.id)} style={{ background: filter === a.id ? a.color : 'transparent', color: filter === a.id ? C.white : a.color, border: `1px solid ${filter === a.id ? a.color : a.color + '55'}`, padding: '5px 14px', borderRadius: 14, cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: '0.66rem', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>{a.name}</button>
+            <button key={a.id} onClick={() => setFilter(a.id)} style={{ background: filter === a.id ? a.color : 'rgba(255,255,255,0.07)', color: filter === a.id ? C.white : a.color, border: `1px solid ${filter === a.id ? a.color : a.color + '44'}`, padding: mob ? '8px 18px' : '5px 14px', borderRadius: 20, cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: mob ? '0.72rem' : '0.66rem', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>{a.name}</button>
           ))}
         </div>
         <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -446,14 +477,15 @@ function Cal({ events, addEvent, removeEvent }) {
             const devs   = evOnDay(day);
             const today_ = isToday(day);
             return (
-              <button key={idx} onClick={() => setSel(day)} style={{ background: today_ ? `rgba(211,32,39,0.12)` : 'rgba(255,255,255,0.03)', border: today_ ? `2px solid ${C.red}` : '1px solid rgba(255,255,255,0.06)', borderRadius: mob ? 5 : 8, padding: mob ? '3px 2px' : '5px 6px', cursor: 'pointer', minHeight: mob ? 50 : 100, display: 'flex', flexDirection: 'column', alignItems: 'stretch', textAlign: 'left' }}>
+              <button key={idx} onClick={() => setSel(day)} style={{ background: today_ ? `rgba(211,32,39,0.14)` : 'rgba(255,255,255,0.03)', border: today_ ? `2px solid ${C.red}` : '1px solid rgba(255,255,255,0.07)', borderRadius: mob ? 7 : 8, padding: mob ? '5px 3px' : '5px 6px', cursor: 'pointer', minHeight: mob ? 70 : 100, display: 'flex', flexDirection: 'column', alignItems: 'stretch', textAlign: 'left', transition: 'background 0.1s' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
                   <span style={{ fontFamily: "'Oswald', sans-serif", fontSize: mob ? '0.75rem' : '0.95rem', fontWeight: today_ ? 800 : 600, color: today_ ? C.red : 'rgba(255,255,255,0.75)' }}>{day}</span>
                   {devs.length > 0 && <span style={{ fontSize: '0.48rem', fontWeight: 700, color: C.red }}>{devs.length}</span>}
                 </div>
                 {mob ? (
-                  <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', marginTop: 1 }}>
-                    {devs.slice(0, 4).map(ev => <div key={ev.id} style={{ width: 6, height: 6, borderRadius: '50%', background: areaColor(ev.area) }} />)}
+                  <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 2, paddingLeft: 2 }}>
+                    {devs.slice(0, 3).map(ev => <div key={ev.id} style={{ width: 7, height: 7, borderRadius: '50%', background: areaColor(ev.area), boxShadow: `0 0 4px ${areaColor(ev.area)}88` }} />)}
+                    {devs.length > 3 && <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'rgba(255,255,255,0.3)', display:'flex',alignItems:'center',justifyContent:'center', fontSize:'0.3rem', color: C.white, fontWeight:800 }}>+</div>}
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, overflow: 'hidden' }}>
@@ -468,6 +500,39 @@ function Cal({ events, addEvent, removeEvent }) {
           })}
         </div>
       </div>
+      {/* ─── Próximos eventos ─── */}
+      {(() => {
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+        const upcoming = events.filter(e => e.date >= todayStr).sort((a,b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time)).slice(0,4);
+        if (upcoming.length === 0) return null;
+        return (
+          <div style={{ width:'100%', maxWidth:1200, padding:'18px 16px 0' }}>
+            <div style={{ fontFamily:"'Oswald',sans-serif", fontSize:'0.58rem', fontWeight:700, letterSpacing:3, textTransform:'uppercase', color:'rgba(255,255,255,0.35)', marginBottom:10 }}>Próximos Eventos</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {upcoming.map(ev => {
+                const [yy,mm,dd] = ev.date.split('-');
+                return (
+                  <div key={ev.id} style={{ display:'flex', alignItems:'center', gap:12, background:'rgba(255,255,255,0.04)', borderRadius:10, padding:'10px 14px', borderLeft:`3px solid ${areaColor(ev.area)}` }}>
+                    <div style={{ textAlign:'center', minWidth:36 }}>
+                      <div style={{ fontFamily:"'Oswald',sans-serif", fontSize:'1.1rem', fontWeight:800, color:C.white, lineHeight:1 }}>{dd}</div>
+                      <div style={{ fontFamily:"'Oswald',sans-serif", fontSize:'0.48rem', fontWeight:600, letterSpacing:2, color:'rgba(255,255,255,0.4)', textTransform:'uppercase' }}>{['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][parseInt(mm)-1]}</div>
+                    </div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontFamily:"'Oswald',sans-serif", fontSize:'0.82rem', fontWeight:600, color:C.white, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{ev.title}</div>
+                      <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:2 }}>
+                        <span style={{ fontSize:'0.62rem', color:'rgba(255,255,255,0.38)' }}>{ev.time} hs</span>
+                        {ev.location && <span style={{ fontSize:'0.6rem', color:'rgba(255,255,255,0.3)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>📍 {ev.location}</span>}
+                      </div>
+                    </div>
+                    <span style={{ fontSize:'0.52rem', fontWeight:700, color:areaColor(ev.area), background:areaColor(ev.area)+'22', padding:'2px 8px', borderRadius:8, fontFamily:"'Oswald',sans-serif", letterSpacing:1, textTransform:'uppercase', whiteSpace:'nowrap', flexShrink:0 }}>{areaName(ev.area)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {sel !== null && (
         <EventModal day={sel} month={vm} year={vy} events={fe} onClose={() => setSel(null)} onAdd={async (p) => { await addEvent(p); }} onRemove={async (id) => { await removeEvent(id); }} />
       )}
@@ -649,11 +714,12 @@ function App() {
     <div style={{ fontFamily: "'Montserrat', sans-serif", background: C.dark3, minHeight: '100vh' }}>
       <Nav active={page} onNav={scrollTo} synced={synced} />
       <Hero onNav={scrollTo} />
-      <Inst />
       <Cal events={events} addEvent={addEvent} removeEvent={removeEvent} />
       <Areas events={events} notes={notes} saveNote={saveNote} />
+      <Inst />
       <Footer onShare={share} />
-      {msg && <div style={{ position: 'fixed', bottom: 22, left: '50%', transform: 'translateX(-50%)', background: C.dark, color: C.white, padding: '11px 22px', borderRadius: 10, fontSize: '0.78rem', fontWeight: 600, zIndex: 300, boxShadow: '0 4px 18px rgba(0,0,0,0.4)', border: `1px solid ${C.red}44`, whiteSpace: 'nowrap' }}>{msg}</div>}
+      <MobileNav active={page} onNav={scrollTo} />
+      {msg && <div style={{ position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', background: C.dark, color: C.white, padding: '11px 22px', borderRadius: 10, fontSize: '0.78rem', fontWeight: 600, zIndex: 300, boxShadow: '0 4px 18px rgba(0,0,0,0.4)', border: `1px solid ${C.red}44`, whiteSpace: 'nowrap' }}>{msg}</div>}
     </div>
   );
 }
