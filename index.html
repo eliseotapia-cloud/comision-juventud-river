@@ -443,15 +443,16 @@ function Cal({ events, addEvent, removeEvent }) {
   const isToday = (d) => d === today.getDate() && vm === today.getMonth() && vy === today.getFullYear();
 
   return (
-    <section id="calendario" style={{ padding: '40px 0 50px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: C.dark3 }}>
+    <section id="calendario" style={{ padding: mob ? '16px 0 24px' : '40px 0 50px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: C.dark3 }}>
       <div style={{ padding: '0 16px', width: '100%', maxWidth: 1200, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.58rem', fontWeight: 600, letterSpacing: 5, textTransform: 'uppercase', color: C.grayMid, marginBottom: 6 }}>Charlas & Eventos</div>
-        <h2 style={{ fontFamily: "'Oswald', sans-serif", fontSize: 'clamp(1.4rem,5vw,2.1rem)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 3, color: C.white, margin: '0 0 8px', textAlign: 'center' }}>Calen<span style={{ color: C.red }}>dario</span></h2>
-        <DS h={3} mb={16} />
-        <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <button onClick={() => setFilter('todas')} style={{ background: filter === 'todas' ? C.white : 'rgba(255,255,255,0.07)', color: filter === 'todas' ? C.dark : 'rgba(255,255,255,0.65)', border: `1px solid ${filter === 'todas' ? C.white : 'rgba(255,255,255,0.15)'}`, padding: mob ? '8px 18px' : '5px 14px', borderRadius: 20, cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: mob ? '0.72rem' : '0.66rem', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>Todas</button>
+        {!mob && <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.58rem', fontWeight: 600, letterSpacing: 5, textTransform: 'uppercase', color: C.grayMid, marginBottom: 6 }}>Charlas & Eventos</div>}
+        <h2 style={{ fontFamily: "'Oswald', sans-serif", fontSize: mob ? '1.25rem' : 'clamp(1.4rem,5vw,2.1rem)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 3, color: C.white, margin: mob ? '0 0 6px' : '0 0 8px', textAlign: 'center' }}>Calen<span style={{ color: C.red }}>dario</span></h2>
+        <DS h={3} mb={mob ? 10 : 16} />
+        {/* Filtros: scroll horizontal en mobile, wrap en desktop */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: mob ? 10 : 16, flexWrap: mob ? 'nowrap' : 'wrap', justifyContent: mob ? 'flex-start' : 'center', overflowX: mob ? 'auto' : 'visible', width: '100%', WebkitOverflowScrolling: 'touch', paddingBottom: mob ? 2 : 0 }}>
+          <button onClick={() => setFilter('todas')} style={{ background: filter === 'todas' ? C.white : 'rgba(255,255,255,0.07)', color: filter === 'todas' ? C.dark : 'rgba(255,255,255,0.65)', border: `1px solid ${filter === 'todas' ? C.white : 'rgba(255,255,255,0.15)'}`, padding: mob ? '6px 16px' : '5px 14px', borderRadius: 20, cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: '0.66rem', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0 }}>Todas</button>
           {AREAS.map(a => (
-            <button key={a.id} onClick={() => setFilter(a.id)} style={{ background: filter === a.id ? a.color : 'rgba(255,255,255,0.07)', color: filter === a.id ? C.white : a.color, border: `1px solid ${filter === a.id ? a.color : a.color + '44'}`, padding: mob ? '8px 18px' : '5px 14px', borderRadius: 20, cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: mob ? '0.72rem' : '0.66rem', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>{a.name}</button>
+            <button key={a.id} onClick={() => setFilter(a.id)} style={{ background: filter === a.id ? a.color : 'rgba(255,255,255,0.07)', color: filter === a.id ? C.white : a.color, border: `1px solid ${filter === a.id ? a.color : a.color + '44'}`, padding: mob ? '6px 16px' : '5px 14px', borderRadius: 20, cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: '0.66rem', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', whiteSpace: 'nowrap', flexShrink: 0 }}>{a.name}</button>
           ))}
         </div>
         <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -473,27 +474,38 @@ function Cal({ events, addEvent, removeEvent }) {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: mob ? 1 : 2, padding: '0 4px' }}>
           {cells.map((day, idx) => {
-            if (day === null) return <div key={`e${idx}`} style={{ background: 'rgba(255,255,255,0.015)', borderRadius: mob ? 4 : 7, minHeight: mob ? 50 : 100 }} />;
+            if (day === null) return <div key={`e${idx}`} style={{ background: 'rgba(255,255,255,0.015)', borderRadius: mob ? 5 : 7, minHeight: mob ? 44 : 100 }} />;
             const devs   = evOnDay(day);
             const today_ = isToday(day);
             return (
-              <button key={idx} onClick={() => setSel(day)} style={{ background: today_ ? `rgba(211,32,39,0.14)` : 'rgba(255,255,255,0.03)', border: today_ ? `2px solid ${C.red}` : '1px solid rgba(255,255,255,0.07)', borderRadius: mob ? 7 : 8, padding: mob ? '5px 3px' : '5px 6px', cursor: 'pointer', minHeight: mob ? 70 : 100, display: 'flex', flexDirection: 'column', alignItems: 'stretch', textAlign: 'left', transition: 'background 0.1s' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                  <span style={{ fontFamily: "'Oswald', sans-serif", fontSize: mob ? '0.75rem' : '0.95rem', fontWeight: today_ ? 800 : 600, color: today_ ? C.red : 'rgba(255,255,255,0.75)' }}>{day}</span>
-                  {devs.length > 0 && <span style={{ fontSize: '0.48rem', fontWeight: 700, color: C.red }}>{devs.length}</span>}
-                </div>
+              <button key={idx} onClick={() => setSel(day)} style={{ background: today_ ? `rgba(211,32,39,0.14)` : 'rgba(255,255,255,0.03)', border: today_ ? `2px solid ${C.red}` : '1px solid rgba(255,255,255,0.07)', borderRadius: mob ? 6 : 8, padding: mob ? '4px 3px 3px' : '5px 6px', cursor: 'pointer', minHeight: mob ? 44 : 100, display: 'flex', flexDirection: 'column', alignItems: 'stretch', textAlign: 'left', transition: 'background 0.1s' }}>
                 {mob ? (
-                  <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 2, paddingLeft: 2 }}>
-                    {devs.slice(0, 3).map(ev => <div key={ev.id} style={{ width: 7, height: 7, borderRadius: '50%', background: areaColor(ev.area), boxShadow: `0 0 4px ${areaColor(ev.area)}88` }} />)}
-                    {devs.length > 3 && <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'rgba(255,255,255,0.3)', display:'flex',alignItems:'center',justifyContent:'center', fontSize:'0.3rem', color: C.white, fontWeight:800 }}>+</div>}
-                  </div>
+                  <>
+                    {/* Número del día */}
+                    <span style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.82rem', fontWeight: today_ ? 800 : 500, color: today_ ? C.red : devs.length > 0 ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.5)', lineHeight: 1, paddingLeft: 2 }}>{day}</span>
+                    {/* Barras de color al fondo — una por evento, como Google Calendar */}
+                    {devs.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 'auto', paddingTop: 3 }}>
+                        {devs.slice(0, 3).map(ev => (
+                          <div key={ev.id} style={{ height: 4, borderRadius: 2, background: areaColor(ev.area), opacity: 0.92 }} />
+                        ))}
+                        {devs.length > 3 && <div style={{ height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.25)' }} />}
+                      </div>
+                    )}
+                  </>
                 ) : (
+                  <>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <span style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.95rem', fontWeight: today_ ? 800 : 600, color: today_ ? C.red : 'rgba(255,255,255,0.75)' }}>{day}</span>
+                    {devs.length > 0 && <span style={{ fontSize: '0.48rem', fontWeight: 700, color: C.red }}>{devs.length}</span>}
+                  </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, overflow: 'hidden' }}>
                     {devs.slice(0, 3).map(ev => (
                       <div key={ev.id} style={{ background: areaColor(ev.area) + '22', borderLeft: `2px solid ${areaColor(ev.area)}`, borderRadius: 3, padding: '1px 4px', fontSize: '0.57rem', fontWeight: 600, color: 'rgba(255,255,255,0.78)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.title}</div>
                     ))}
                     {devs.length > 3 && <div style={{ fontSize: '0.46rem', color: C.grayText, fontWeight: 600, paddingLeft: 3 }}>+{devs.length - 3}</div>}
                   </div>
+                  </>
                 )}
               </button>
             );
@@ -503,28 +515,29 @@ function Cal({ events, addEvent, removeEvent }) {
       {/* ─── Próximos eventos ─── */}
       {(() => {
         const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-        const upcoming = events.filter(e => e.date >= todayStr).sort((a,b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time)).slice(0,4);
+        const upcoming = events.filter(e => e.date >= todayStr).sort((a,b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time)).slice(0, mob ? 3 : 4);
         if (upcoming.length === 0) return null;
+        const MN = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
         return (
-          <div style={{ width:'100%', maxWidth:1200, padding:'18px 16px 0' }}>
-            <div style={{ fontFamily:"'Oswald',sans-serif", fontSize:'0.58rem', fontWeight:700, letterSpacing:3, textTransform:'uppercase', color:'rgba(255,255,255,0.35)', marginBottom:10 }}>Próximos Eventos</div>
-            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          <div style={{ width:'100%', maxWidth:1200, padding: mob ? '12px 12px 0' : '18px 16px 0' }}>
+            <div style={{ fontFamily:"'Oswald',sans-serif", fontSize:'0.55rem', fontWeight:700, letterSpacing:3, textTransform:'uppercase', color:'rgba(255,255,255,0.3)', marginBottom: mob ? 7 : 10 }}>Próximos Eventos</div>
+            <div style={{ display:'flex', flexDirection:'column', gap: mob ? 5 : 6 }}>
               {upcoming.map(ev => {
-                const [yy,mm,dd] = ev.date.split('-');
+                const [,mm,dd] = ev.date.split('-');
                 return (
-                  <div key={ev.id} style={{ display:'flex', alignItems:'center', gap:12, background:'rgba(255,255,255,0.04)', borderRadius:10, padding:'10px 14px', borderLeft:`3px solid ${areaColor(ev.area)}` }}>
-                    <div style={{ textAlign:'center', minWidth:36 }}>
-                      <div style={{ fontFamily:"'Oswald',sans-serif", fontSize:'1.1rem', fontWeight:800, color:C.white, lineHeight:1 }}>{dd}</div>
-                      <div style={{ fontFamily:"'Oswald',sans-serif", fontSize:'0.48rem', fontWeight:600, letterSpacing:2, color:'rgba(255,255,255,0.4)', textTransform:'uppercase' }}>{['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][parseInt(mm)-1]}</div>
+                  <div key={ev.id} style={{ display:'flex', alignItems:'center', gap: mob ? 10 : 12, background:'rgba(255,255,255,0.045)', borderRadius: mob ? 8 : 10, padding: mob ? '8px 10px' : '10px 14px', borderLeft:`3px solid ${areaColor(ev.area)}` }}>
+                    <div style={{ textAlign:'center', minWidth: mob ? 30 : 36, flexShrink:0 }}>
+                      <div style={{ fontFamily:"'Oswald',sans-serif", fontSize: mob ? '0.95rem' : '1.1rem', fontWeight:800, color:C.white, lineHeight:1 }}>{dd}</div>
+                      <div style={{ fontFamily:"'Oswald',sans-serif", fontSize:'0.44rem', fontWeight:600, letterSpacing:2, color:'rgba(255,255,255,0.38)', textTransform:'uppercase' }}>{MN[parseInt(mm)-1]}</div>
                     </div>
                     <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontFamily:"'Oswald',sans-serif", fontSize:'0.82rem', fontWeight:600, color:C.white, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{ev.title}</div>
-                      <div style={{ display:'flex', gap:8, alignItems:'center', marginTop:2 }}>
-                        <span style={{ fontSize:'0.62rem', color:'rgba(255,255,255,0.38)' }}>{ev.time} hs</span>
-                        {ev.location && <span style={{ fontSize:'0.6rem', color:'rgba(255,255,255,0.3)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>📍 {ev.location}</span>}
+                      <div style={{ fontFamily:"'Oswald',sans-serif", fontSize: mob ? '0.78rem' : '0.82rem', fontWeight:600, color:C.white, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{ev.title}</div>
+                      <div style={{ display:'flex', gap:6, alignItems:'center', marginTop:1 }}>
+                        <span style={{ fontSize:'0.58rem', color:'rgba(255,255,255,0.36)' }}>{ev.time} hs</span>
+                        {ev.location && <span style={{ fontSize:'0.56rem', color:'rgba(255,255,255,0.28)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>· {ev.location}</span>}
                       </div>
                     </div>
-                    <span style={{ fontSize:'0.52rem', fontWeight:700, color:areaColor(ev.area), background:areaColor(ev.area)+'22', padding:'2px 8px', borderRadius:8, fontFamily:"'Oswald',sans-serif", letterSpacing:1, textTransform:'uppercase', whiteSpace:'nowrap', flexShrink:0 }}>{areaName(ev.area)}</span>
+                    <span style={{ fontSize:'0.48rem', fontWeight:700, color:areaColor(ev.area), background:areaColor(ev.area)+'20', padding:'2px 7px', borderRadius:6, fontFamily:"'Oswald',sans-serif", letterSpacing:1, textTransform:'uppercase', whiteSpace:'nowrap', flexShrink:0 }}>{areaName(ev.area)}</span>
                   </div>
                 );
               })}
