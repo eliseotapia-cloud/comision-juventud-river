@@ -13,7 +13,6 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; overflow-x: hidden; background: #0F0F23; scroll-behavior: smooth; }
@@ -112,16 +111,29 @@ const initials  = (name) => {
   return p.length >= 2 ? (p[0][0] + p[p.length - 1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
 };
 
-// ═══ BASE DE DATOS ═══
-const HAS_SB  = Boolean(window.SUPABASE_URL && window.SUPABASE_KEY);
-const sbClient = HAS_SB ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY) : null;
-const LS_KEY  = 'cj_river_v2';
+// ═══ BASE DE DATOS (Supabase REST directo, sin librería) ═══
+const HAS_SB = Boolean(window.SUPABASE_URL && window.SUPABASE_KEY);
+const LS_KEY = 'cj_river_v2';
+const SB_API = window.SUPABASE_URL + '/rest/v1';
+const SB_HDR = {
+  'apikey': window.SUPABASE_KEY,
+  'Authorization': 'Bearer ' + window.SUPABASE_KEY,
+  'Content-Type': 'application/json',
+  'Prefer': 'return=representation',
+};
+
+async function sbFetch(path, opts = {}) {
+  const res = await fetch(SB_API + path, { ...opts, headers: { ...SB_HDR, ...(opts.headers || {}) } });
+  if (!res.ok) { const txt = await res.text(); throw new Error(txt); }
+  const txt = await res.text();
+  return txt ? JSON.parse(txt) : null;
+}
 
 async function dbLoad() {
   if (HAS_SB) {
-    const [{ data: evs }, { data: ns }] = await Promise.all([
-      sbClient.from('events').select('*').order('date', { ascending: true }).order('time', { ascending: true }),
-      sbClient.from('event_notes').select('*'),
+    const [evs, ns] = await Promise.all([
+      sbFetch('/events?select=*&order=date.asc,time.asc'),
+      sbFetch('/event_notes?select=*'),
     ]);
     const notes = {};
     (ns || []).forEach(n => { notes[n.event_id] = { id: n.id, content: n.content }; });
@@ -132,33 +144,27 @@ async function dbLoad() {
 }
 
 function lsSave(events, notes) {
-  if (!HAS_SB) localStorage.setItem(LS_KEY, JSON.stringify({ events, notes }));
+  localStorage.setItem(LS_KEY, JSON.stringify({ events, notes }));
 }
 
 async function dbAddEvent(payload) {
   if (HAS_SB) {
-    const { data, error } = await sbClient.from('events').insert([payload]).select().single();
-    if (error) throw error;
-    return data;
+    const data = await sbFetch('/events', { method: 'POST', body: JSON.stringify(payload) });
+    return Array.isArray(data) ? data[0] : data;
   }
-  return { ...payload, id: `ev_${Date.now()}`, created_at: new Date().toISOString() };
+  return { ...payload, id: `ev_${Date.now()}` };
 }
 
 async function dbRemoveEvent(id) {
-  if (HAS_SB) {
-    const { error } = await sbClient.from('events').delete().eq('id', id);
-    if (error) throw error;
-  }
+  if (HAS_SB) await sbFetch(`/events?id=eq.${id}`, { method: 'DELETE' });
 }
 
 async function dbSaveNote(eventId, content, existing) {
   if (HAS_SB) {
     if (existing?.id) {
-      const { error } = await sbClient.from('event_notes').update({ content, updated_at: new Date().toISOString() }).eq('id', existing.id);
-      if (error) throw error;
+      await sbFetch(`/event_notes?id=eq.${existing.id}`, { method: 'PATCH', body: JSON.stringify({ content }) });
     } else {
-      const { error } = await sbClient.from('event_notes').insert([{ event_id: eventId, content }]);
-      if (error) throw error;
+      await sbFetch('/event_notes', { method: 'POST', body: JSON.stringify({ event_id: eventId, content }) });
     }
   }
 }
@@ -580,13 +586,10 @@ function App() {
   useEffect(() => {
     reload().finally(() => setLoading(false));
 
-    // Realtime (solo si Supabase está configurado)
+    // Polling cada 15s para sincronizar cambios de otros usuarios
     if (HAS_SB) {
-      const ch = sbClient.channel('cj-realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'events' },      reload)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'event_notes' }, reload)
-        .subscribe();
-      return () => sbClient.removeChannel(ch);
+      const interval = setInterval(reload, 15000);
+      return () => clearInterval(interval);
     }
   }, [reload]);
 
