@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0F0F23" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Comisión de la Juventud - River Plate</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700;800&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; overflow-x: hidden; background: #0F0F23; scroll-behavior: smooth; }
+    body { font-family: 'Montserrat', sans-serif; -webkit-tap-highlight-color: transparent; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: #1A1A2E; }
+    ::-webkit-scrollbar-thumb { background: #D32027; border-radius: 3px; }
+    input, textarea, select { font-size: 16px !important; }
+    button { -webkit-appearance: none; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<!--
+  ═══════════════════════════════════════════════════════
+  CONFIGURACIÓN DE BASE DE DATOS (opcional)
+  ═══════════════════════════════════════════════════════
+  Sin configurar: los datos se guardan en este navegador (localStorage).
+  Con Supabase: los datos se sincronizan entre todos los usuarios en tiempo real.
+
+  Para activar la sincronización:
+  1. Creá un proyecto gratis en https://supabase.com
+  2. Andá a SQL Editor y ejecutá este script:
+
+  create table events (
+    id          uuid primary key default gen_random_uuid(),
+    title       text not null,
+    description text,
+    date        date not null,
+    time        text not null default '18:00',
+    area        text not null check (area in ('formativa','sociocultural','deportiva')),
+    location    text,
+    created_at  timestamptz default now()
+  );
+  create table event_notes (
+    id         uuid primary key default gen_random_uuid(),
+    event_id   uuid not null references events(id) on delete cascade,
+    content    text not null default '',
+    updated_at timestamptz default now(),
+    unique (event_id)
+  );
+  alter table events      enable row level security;
+  alter table event_notes enable row level security;
+  create policy "public" on events      for all using (true) with check (true);
+  create policy "public" on event_notes for all using (true) with check (true);
+  alter publication supabase_realtime add table events;
+  alter publication supabase_realtime add table event_notes;
+
+  3. Completá las variables de abajo con los datos de tu proyecto
+     (Supabase → Settings → API)
+  ═══════════════════════════════════════════════════════
+-->
+<script>
+  var SUPABASE_URL = 'https://qdnjddrcxvnhwplzukt.supabase.co';
+  var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFkbmpkZGRyY3h2bmh3cGx6dWt0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1NTU3ODksImV4cCI6MjA5MDEzMTc4OX0.s-LJAxqiWdip2rVQKJVaocfL8wSgJD68WEpl-ujannc';
+</script>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ═══ COLORES ═══
+const C = {
+  red: '#D32027', redDark: '#B01820', redLight: '#E8444A',
+  dark: '#1A1A2E', dark2: '#16213E', dark3: '#0F0F23',
+  white: '#FFFFFF', offWhite: '#F8F8FA', gray: '#F0F0F2',
+  grayMid: '#C4C4C4', grayText: '#888',
+};
+
+// ═══ CONSTANTES ═══
+const MONTHS   = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const DAYS_S   = ['L','M','X','J','V','S','D'];
+const DAYS_F   = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+const AREAS    = [
+  { id: 'formativa',     name: 'Formativa',    color: '#D32027', icon: '📚', desc: 'Capacitación y desarrollo de habilidades.' },
+  { id: 'sociocultural', name: 'Sociocultural', color: '#6B7280', icon: '🎭', desc: 'Actividades culturales y de integración.' },
+  { id: 'deportiva',     name: 'Deportiva',     color: '#1565C0', icon: '⚽', desc: 'Eventos deportivos y disciplinas del club.' },
+];
+const LEADERS  = [
+  { name: 'Jerónimo Orlando', role: 'Presidente' },
+  { name: 'Dante Di Carlo',   role: 'Vicepresidente I' },
+  { name: 'Eliseo Tapia',     role: 'Vicepresidente II' },
+];
+const DEFAULT_EVENTS = [
+  { id: 'ev1', title: 'Charla: Liderazgo Juvenil',   date: '2026-03-25', time: '18:00', area: 'formativa',     description: 'Orador invitado sobre liderazgo en organizaciones deportivas', location: null },
+  { id: 'ev2', title: 'Taller de Oratoria',           date: '2026-03-27', time: '19:00', area: 'formativa',     description: 'Taller práctico para mejorar habilidades de comunicación',     location: null },
+  { id: 'ev3', title: 'Cine debate: Hooligans',       date: '2026-03-28', time: '17:00', area: 'sociocultural', description: 'Proyección y debate sobre cultura en el fútbol',                location: null },
+  { id: 'ev4', title: 'Charla: Nutrición Deportiva',  date: '2026-04-02', time: '18:30', area: 'deportiva',     description: 'Nutricionista del club comparte claves de alimentación',       location: null },
+];
+
+// ═══ HELPERS ═══
+const areaColor = (id) => AREAS.find(a => a.id === id)?.color ?? C.red;
+const areaName  = (id) => AREAS.find(a => a.id === id)?.name  ?? id;
+const initials  = (name) => {
+  const p = name.trim().split(/\s+/);
+  return p.length >= 2 ? (p[0][0] + p[p.length - 1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
+};
+
+// ═══ BASE DE DATOS ═══
+const HAS_SB  = Boolean(window.SUPABASE_URL && window.SUPABASE_KEY);
+const sbClient = HAS_SB ? supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY) : null;
+const LS_KEY  = 'cj_river_v2';
+
+async function dbLoad() {
+  if (HAS_SB) {
+    const [{ data: evs }, { data: ns }] = await Promise.all([
+      sbClient.from('events').select('*').order('date', { ascending: true }).order('time', { ascending: true }),
+      sbClient.from('event_notes').select('*'),
+    ]);
+    const notes = {};
+    (ns || []).forEach(n => { notes[n.event_id] = { id: n.id, content: n.content }; });
+    return { events: evs || [], notes };
+  }
+  const saved = localStorage.getItem(LS_KEY);
+  return saved ? JSON.parse(saved) : { events: DEFAULT_EVENTS, notes: {} };
+}
+
+function lsSave(events, notes) {
+  if (!HAS_SB) localStorage.setItem(LS_KEY, JSON.stringify({ events, notes }));
+}
+
+async function dbAddEvent(payload) {
+  if (HAS_SB) {
+    const { data, error } = await sbClient.from('events').insert([payload]).select().single();
+    if (error) throw error;
+    return data;
+  }
+  return { ...payload, id: `ev_${Date.now()}`, created_at: new Date().toISOString() };
+}
+
+async function dbRemoveEvent(id) {
+  if (HAS_SB) {
+    const { error } = await sbClient.from('events').delete().eq('id', id);
+    if (error) throw error;
+  }
+}
+
+async function dbSaveNote(eventId, content, existing) {
+  if (HAS_SB) {
+    if (existing?.id) {
+      const { error } = await sbClient.from('event_notes').update({ content, updated_at: new Date().toISOString() }).eq('id', existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await sbClient.from('event_notes').insert([{ event_id: eventId, content }]);
+      if (error) throw error;
+    }
+  }
+}
+
+// ═══ BANDA DIAGONAL (separador River) ═══
+function DS({ h = 4, mt = 0, mb = 0 }) {
+  return (
+    <div style={{ width: '100%', height: h, borderRadius: h / 2, marginTop: mt, marginBottom: mb, background: `repeating-linear-gradient(-45deg, ${C.red}, ${C.red} 8px, transparent 8px, transparent 16px)` }} />
+  );
+}
+
+// ═══ NAV ═══
+function Nav({ active, onNav, synced }) {
+  const [open, setOpen] = useState(false);
+  const items = [{ id: 'inicio', l: 'Inicio' }, { id: 'institucional', l: 'Institucional' }, { id: 'calendario', l: 'Calendario' }, { id: 'areas', l: 'Áreas' }];
+  return (
+    <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: C.dark3, borderBottom: `3px solid ${C.red}`, fontFamily: "'Oswald', sans-serif" }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0' }}>
+          <div style={{ width: 30, height: 30, borderRadius: '50%', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: C.white, fontSize: '0.65rem', boxShadow: `0 2px 10px ${C.red}44` }}>CJ</div>
+          <span style={{ color: C.white, fontSize: '0.78rem', fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase' }}>
+            Juventud <span style={{ color: C.red }}>River</span>
+          </span>
+          {synced && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4CAF50', marginLeft: 2 }} title="Sincronizado con servidor" />}
+        </div>
+        <div className="nd" style={{ display: 'flex', gap: 2 }}>
+          {items.map(it => (
+            <button key={it.id} onClick={() => onNav(it.id)} style={{ background: active === it.id ? C.red : 'transparent', color: C.white, border: 'none', padding: '10px 14px', cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: '0.7rem', fontWeight: 500, letterSpacing: 2, textTransform: 'uppercase', borderRadius: 6 }}>
+              {it.l}
+            </button>
+          ))}
+        </div>
+        <button className="nb" onClick={() => setOpen(o => !o)} style={{ display: 'none', background: 'none', border: 'none', color: C.white, fontSize: '1.3rem', cursor: 'pointer', padding: 6 }}>
+          {open ? '✕' : '☰'}
+        </button>
+      </div>
+      {open && (
+        <div className="nm" style={{ padding: '0 16px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {items.map(it => (
+            <button key={it.id} onClick={() => { onNav(it.id); setOpen(false); }} style={{ background: active === it.id ? C.red : 'rgba(255,255,255,0.05)', color: C.white, border: 'none', padding: '12px 16px', cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: '0.78rem', fontWeight: 500, letterSpacing: 2, textTransform: 'uppercase', borderRadius: 8, textAlign: 'left' }}>
+              {it.l}
+            </button>
+          ))}
+        </div>
+      )}
+      <style>{`@media(max-width:700px){.nd{display:none!important}.nb{display:block!important}}@media(min-width:701px){.nm{display:none!important}}`}</style>
+    </nav>
+  );
+}
+
+// ═══ HERO ═══
+function Hero({ onNav }) {
+  return (
+    <section style={{ position: 'relative', background: C.dark3, minHeight: '68vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: '40px 16px' }}>
+      <div style={{ position: 'absolute', inset: 0, opacity: 0.045, backgroundImage: `radial-gradient(ellipse 120% 60% at 50% 110%, ${C.red}33 0%, transparent 70%), repeating-linear-gradient(45deg, ${C.white} 0, ${C.white} 1px, transparent 1px, transparent 50px), repeating-linear-gradient(-45deg, ${C.white} 0, ${C.white} 1px, transparent 1px, transparent 50px)` }} />
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '35%', background: `linear-gradient(to top, ${C.red}14, transparent)` }} />
+      <div style={{ position: 'absolute', top: 0, left: 0, width: 4, height: '100%', background: `linear-gradient(to bottom, ${C.red}, ${C.redDark})` }} />
+      <div style={{ position: 'absolute', top: 0, right: 0, width: 4, height: '100%', background: `linear-gradient(to bottom, ${C.red}, ${C.redDark})` }} />
+      <div style={{ position: 'relative', textAlign: 'center', maxWidth: 620, width: '100%' }}>
+        <div style={{ width: 60, height: 60, borderRadius: '50%', background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', boxShadow: `0 6px 32px ${C.red}55`, border: '2px solid rgba(255,255,255,0.12)' }}>
+          <span style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 800, fontSize: '1.15rem', color: C.white }}>CJ</span>
+        </div>
+        <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.55rem', fontWeight: 500, letterSpacing: 7, textTransform: 'uppercase', color: C.red, marginBottom: 12 }}>Club Atlético River Plate</div>
+        <h1 style={{ fontFamily: "'Oswald', sans-serif", fontSize: 'clamp(2rem,9vw,4rem)', fontWeight: 800, color: C.white, textTransform: 'uppercase', letterSpacing: 3, lineHeight: 1 }}>Comisión de la</h1>
+        <h1 style={{ fontFamily: "'Oswald', sans-serif", fontSize: 'clamp(2.6rem,11vw,5rem)', fontWeight: 800, color: C.red, textTransform: 'uppercase', letterSpacing: 4, lineHeight: 1, margin: '4px 0 0', textShadow: `0 0 50px ${C.red}44` }}>Juventud</h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, margin: '20px auto' }}>
+          <div style={{ flex: 1, maxWidth: 80, height: 2, background: `linear-gradient(to right, transparent, ${C.red})` }} />
+          <div style={{ width: 8, height: 8, background: C.red, transform: 'rotate(45deg)' }} />
+          <div style={{ flex: 1, maxWidth: 80, height: 2, background: `linear-gradient(to left, transparent, ${C.red})` }} />
+        </div>
+        <p style={{ fontSize: 'clamp(0.78rem,2.5vw,0.92rem)', color: 'rgba(255,255,255,0.5)', lineHeight: 1.75, maxWidth: 460, margin: '0 auto 28px' }}>
+          Formamos y activamos la próxima generación de socios influyentes del Club Atlético River Plate.
+        </p>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button onClick={() => onNav('calendario')} style={{ background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, color: C.white, border: 'none', padding: '13px 30px', borderRadius: 8, fontFamily: "'Oswald', sans-serif", fontSize: '0.78rem', fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', cursor: 'pointer', boxShadow: `0 6px 22px ${C.red}44` }}>Ver Calendario</button>
+          <button onClick={() => onNav('areas')} style={{ background: 'transparent', color: C.white, border: `2px solid ${C.red}55`, padding: '13px 30px', borderRadius: 8, fontFamily: "'Oswald', sans-serif", fontSize: '0.78rem', fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', cursor: 'pointer' }}>Ver Áreas</button>
+        </div>
+      </div>
+      <div style={{ position: 'relative', marginTop: 40, display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
+        {AREAS.map(a => (
+          <div key={a.id} style={{ textAlign: 'center', background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: '10px 18px', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <div style={{ fontSize: '1.1rem', marginBottom: 4 }}>{a.icon}</div>
+            <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.62rem', fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', color: a.id === 'sociocultural' ? 'rgba(255,255,255,0.5)' : a.color }}>{a.name}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ═══ INSTITUCIONAL ═══
+const PILLARS = [
+  { t: 'Misión',  i: '🎯', txt: 'Representar y potenciar a la juventud socia del Club Atlético River Plate, generando espacios de participación, formación y encuentro que impulsen su desarrollo personal, su compromiso con el club y potenciar el futuro de la próxima generación de dirigentes de River.' },
+  { t: 'Visión',  i: '🔭', txt: 'Ser una comisión referente dentro del club, reconocida por su capacidad de formar, inspirar y conectar a las nuevas generaciones, creando experiencias, charlas y proyectos que fortalezcan el sentido de pertenencia y proyecten una juventud activa, comprometida y protagonista del futuro de River.' },
+  { t: 'Valores', i: '💪', txt: 'Nos guiamos por el compromiso, el trabajo en equipo y la vocación de servicio. Actuamos con responsabilidad, cercanía y transparencia, promoviendo una participación activa y genuina. Creemos en el poder de la juventud organizada para generar comunidad, construir vínculos sólidos y dejar una huella positiva dentro y fuera del club.' },
+];
+function Inst() {
+  const [sel, setSel] = useState(null);
+  return (
+    <section id="institucional" style={{ padding: '50px 16px 58px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: C.white }}>
+      <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.58rem', fontWeight: 600, letterSpacing: 5, textTransform: 'uppercase', color: C.grayMid, marginBottom: 6 }}>Quiénes Somos</div>
+      <h2 style={{ fontFamily: "'Oswald', sans-serif", fontSize: 'clamp(1.4rem,5vw,2.1rem)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 3, color: C.dark, margin: '0 0 8px', textAlign: 'center' }}>Institu<span style={{ color: C.red }}>cional</span></h2>
+      <DS h={3} mb={28} />
+      <div style={{ width: '100%', maxWidth: 960, display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 36 }}>
+        {PILLARS.map((p, i) => (
+          <div key={i} style={{ flex: '1 1 270px', maxWidth: 315, background: C.offWhite, borderRadius: 14, padding: '22px 18px', textAlign: 'center', boxShadow: '0 3px 16px rgba(0,0,0,0.05)', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: C.red }} />
+            <div style={{ fontSize: '1.4rem', marginBottom: 8 }}>{p.i}</div>
+            <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.9rem', fontWeight: 700, color: C.dark, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>{p.t}</div>
+            <div style={{ fontSize: '0.73rem', color: C.dark, lineHeight: 1.75, opacity: 0.7 }}>{p.txt}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.55rem', fontWeight: 600, letterSpacing: 3, textTransform: 'uppercase', color: C.white, background: C.dark, padding: '4px 14px', borderRadius: 11, marginBottom: 18 }}>Autoridades</div>
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 34 }}>
+        {LEADERS.map((l, i) => {
+          const on = sel === i;
+          return (
+            <div key={i} onClick={() => setSel(on ? null : i)} style={{ background: on ? `linear-gradient(135deg, ${C.red}, ${C.redDark})` : C.offWhite, color: on ? C.white : C.dark, borderRadius: 14, padding: '18px 24px', textAlign: 'center', boxShadow: on ? `0 8px 28px ${C.red}33` : '0 3px 14px rgba(0,0,0,0.05)', minWidth: 150, cursor: 'pointer', transition: 'all 0.25s', border: on ? 'none' : '1px solid #eee' }}>
+              <div style={{ width: 42, height: 42, borderRadius: '50%', background: on ? 'rgba(255,255,255,0.2)' : C.red, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px', fontFamily: "'Oswald', sans-serif", fontSize: '0.78rem', fontWeight: 700, color: C.white }}>{initials(l.name)}</div>
+              <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.85rem', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>{l.name}</div>
+              <div style={{ fontSize: '0.6rem', fontWeight: 500, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.6, marginTop: 3 }}>{l.role}</div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ width: '100%', maxWidth: 720, background: C.dark3, borderRadius: 14, padding: '24px 20px 24px 28px', color: C.white, position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, width: 4, height: '100%', background: C.red }} />
+        <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.88rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>Sobre la <span style={{ color: C.red }}>Comisión</span></div>
+        <div style={{ fontSize: '0.78rem', lineHeight: 1.88, opacity: 0.73 }}>
+          La Comisión de la Juventud de River Plate nace con el propósito de dar voz, espacio y protagonismo a los socios jóvenes del club.<br /><br />
+          Buscamos generar un punto de encuentro donde la formación, la participación y la comunidad se integren de manera natural, a través de charlas, experiencias y actividades que inspiren y conecten.<br /><br />
+          Trabajamos sobre tres ejes principales — <span style={{ color: C.red, fontWeight: 600 }}>formativo</span>, <span style={{ color: C.grayMid, fontWeight: 600 }}>sociocultural</span> y <span style={{ color: '#1565C0', fontWeight: 600 }}>deportivo</span> — con el objetivo de acompañar el desarrollo integral de los jóvenes, fortaleciendo su vínculo con el club y entre ellos.<br /><br />
+          Creemos en una juventud activa, con iniciativa, que no solo participa, sino que también construye, propone y deja huella en la vida institucional de River.
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ═══ MODAL DE DÍA (crear / borrar eventos) ═══
+function EventModal({ day, month, year, events, onClose, onAdd, onRemove }) {
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving]     = useState(false);
+  const [form, setForm]         = useState({ title: '', time: '18:00', area: 'formativa', location: '', desc: '' });
+  const dk  = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const evs = events.filter(e => e.date === dk);
+  const iS  = { background: C.gray, border: '1px solid #ddd', borderRadius: 8, padding: '11px 13px', fontFamily: "'Montserrat', sans-serif", fontSize: '16px', outline: 'none', width: '100%', color: C.dark };
+
+  const handleAdd = async () => {
+    if (!form.title.trim()) return;
+    setSaving(true);
+    try {
+      await onAdd({ date: dk, title: form.title.trim(), time: form.time, area: form.area, location: form.location.trim() || null, description: form.desc.trim() || null });
+      setForm({ title: '', time: '18:00', area: 'formativa', location: '', desc: '' });
+      setShowForm(false);
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: C.white, borderRadius: '18px 18px 0 0', padding: '20px 18px 32px', width: '100%', maxWidth: 500, maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 -8px 40px rgba(0,0,0,0.25)' }}>
+        <div style={{ width: 36, height: 4, background: '#ddd', borderRadius: 2, margin: '0 auto 14px' }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: '1.1rem', fontWeight: 700, color: C.dark }}>{day} de {MONTHS[month]} <span style={{ color: C.red }}>{year}</span></div>
+          <button onClick={onClose} style={{ background: C.gray, border: 'none', width: 30, height: 30, borderRadius: '50%', fontSize: '0.9rem', cursor: 'pointer', color: C.grayText, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+        </div>
+
+        {evs.length === 0 && !showForm && <div style={{ color: C.grayText, fontSize: '0.82rem', textAlign: 'center', padding: '14px 0' }}>No hay eventos este día.</div>}
+        {evs.map(ev => (
+          <div key={ev.id} style={{ background: C.offWhite, borderRadius: 10, padding: '12px 14px', marginBottom: 8, borderLeft: `4px solid ${areaColor(ev.area)}`, position: 'relative' }}>
+            <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.9rem', fontWeight: 600, color: C.dark, paddingRight: 28 }}>{ev.title}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 4, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.68rem', color: C.grayText }}>{ev.time} hs</span>
+              {ev.location && <span style={{ fontSize: '0.65rem', color: C.grayText }}>📍 {ev.location}</span>}
+              <span style={{ fontSize: '0.58rem', fontWeight: 700, color: areaColor(ev.area), background: areaColor(ev.area) + '18', padding: '1px 7px', borderRadius: 8, fontFamily: "'Oswald', sans-serif", letterSpacing: 1, textTransform: 'uppercase' }}>{areaName(ev.area)}</span>
+            </div>
+            {ev.description && <div style={{ fontSize: '0.72rem', color: C.dark, marginTop: 5, opacity: 0.55 }}>{ev.description}</div>}
+            <button onClick={() => onRemove(ev.id)} style={{ position: 'absolute', top: 8, right: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', fontSize: 18, lineHeight: 1 }}>×</button>
+          </div>
+        ))}
+
+        {!showForm ? (
+          <button onClick={() => setShowForm(true)} style={{ background: C.red, color: C.white, border: 'none', borderRadius: 10, padding: '13px', cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: '0.78rem', fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', width: '100%', marginTop: 4, boxShadow: `0 4px 16px ${C.red}33` }}>+ Agregar Evento</button>
+        ) : (
+          <div style={{ background: C.offWhite, borderRadius: 12, padding: 16, marginTop: 8 }}>
+            <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.7rem', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: C.dark, marginBottom: 12 }}>Nuevo Evento</div>
+            <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Nombre del evento *" style={iS} autoFocus />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
+              <div>
+                <div style={{ fontSize: '0.65rem', color: C.grayText, marginBottom: 3, fontWeight: 600 }}>Hora</div>
+                <input type="time" value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))} style={iS} />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.65rem', color: C.grayText, marginBottom: 3, fontWeight: 600 }}>Lugar (opcional)</div>
+                <input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="Ej: Salón Principal" style={iS} />
+              </div>
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: '0.65rem', color: C.grayText, marginBottom: 6, fontWeight: 600 }}>Área</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {AREAS.map(a => (
+                  <button key={a.id} onClick={() => setForm(f => ({ ...f, area: a.id }))} style={{ background: form.area === a.id ? a.color : 'transparent', color: form.area === a.id ? C.white : a.color, border: `2px solid ${a.color}`, padding: '5px 13px', borderRadius: 14, cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: '0.66rem', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>
+                    {a.icon} {a.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <textarea value={form.desc} onChange={e => setForm(f => ({ ...f, desc: e.target.value }))} placeholder="Descripción (opcional)" rows={2} style={{ ...iS, marginTop: 8, resize: 'vertical' }} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button onClick={handleAdd} disabled={saving || !form.title.trim()} style={{ flex: 1, background: saving ? '#aaa' : C.red, color: C.white, border: 'none', borderRadius: 8, padding: '12px', cursor: saving ? 'wait' : 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: '0.76rem', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>{saving ? 'Guardando...' : 'Guardar'}</button>
+              <button onClick={() => setShowForm(false)} style={{ flex: 1, background: C.white, color: C.dark, border: '1px solid #ddd', borderRadius: 8, padding: '12px', cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: '0.76rem', fontWeight: 600 }}>Cancelar</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══ CALENDARIO ═══
+function Cal({ events, addEvent, removeEvent }) {
+  const today = new Date();
+  const [vy, setVy]         = useState(today.getFullYear());
+  const [vm, setVm]         = useState(today.getMonth());
+  const [sel, setSel]       = useState(null);
+  const [filter, setFilter] = useState('todas');
+  const [mob, setMob]       = useState(window.innerWidth < 640);
+  useEffect(() => { const h = () => setMob(window.innerWidth < 640); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h); }, []);
+
+  const pm = () => { if (vm === 0) { setVm(11); setVy(y => y - 1); } else setVm(m => m - 1); };
+  const nm = () => { if (vm === 11) { setVm(0); setVy(y => y + 1); } else setVm(m => m + 1); };
+  const isCurrentMonth = vy === today.getFullYear() && vm === today.getMonth();
+
+  const fd = new Date(vy, vm, 1);
+  let offset = fd.getDay() - 1; if (offset < 0) offset = 6;
+  const dim = new Date(vy, vm + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < offset; i++) cells.push(null);
+  for (let d = 1; d <= dim; d++) cells.push(d);
+
+  const dk = (d) => `${vy}-${String(vm + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const fe = filter === 'todas' ? events : events.filter(e => e.area === filter);
+  const evOnDay = (d) => fe.filter(e => e.date === dk(d));
+  const isToday = (d) => d === today.getDate() && vm === today.getMonth() && vy === today.getFullYear();
+
+  return (
+    <section id="calendario" style={{ padding: '40px 0 50px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: C.dark3 }}>
+      <div style={{ padding: '0 16px', width: '100%', maxWidth: 1200, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.58rem', fontWeight: 600, letterSpacing: 5, textTransform: 'uppercase', color: C.grayMid, marginBottom: 6 }}>Charlas & Eventos</div>
+        <h2 style={{ fontFamily: "'Oswald', sans-serif", fontSize: 'clamp(1.4rem,5vw,2.1rem)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 3, color: C.white, margin: '0 0 8px', textAlign: 'center' }}>Calen<span style={{ color: C.red }}>dario</span></h2>
+        <DS h={3} mb={16} />
+        <div style={{ display: 'flex', gap: 5, marginBottom: 14, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <button onClick={() => setFilter('todas')} style={{ background: filter === 'todas' ? C.white : 'transparent', color: filter === 'todas' ? C.dark : 'rgba(255,255,255,0.55)', border: `1px solid ${filter === 'todas' ? C.white : 'rgba(255,255,255,0.15)'}`, padding: '5px 14px', borderRadius: 14, cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: '0.66rem', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>Todas</button>
+          {AREAS.map(a => (
+            <button key={a.id} onClick={() => setFilter(a.id)} style={{ background: filter === a.id ? a.color : 'transparent', color: filter === a.id ? C.white : a.color, border: `1px solid ${filter === a.id ? a.color : a.color + '55'}`, padding: '5px 14px', borderRadius: 14, cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: '0.66rem', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>{a.name}</button>
+          ))}
+        </div>
+        <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <button onClick={pm} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, width: 38, height: 38, cursor: 'pointer', fontSize: '1.1rem', color: C.white, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: 'clamp(0.95rem,3.5vw,1.3rem)', fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', color: C.white }}>{MONTHS[vm]} <span style={{ color: C.red }}>{vy}</span></div>
+            {!isCurrentMonth && (
+              <button onClick={() => { setVy(today.getFullYear()); setVm(today.getMonth()); }} style={{ background: `rgba(211,32,39,0.15)`, color: C.red, border: `1px solid ${C.red}44`, borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: '0.6rem', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>Hoy</button>
+            )}
+          </div>
+          <button onClick={nm} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, width: 38, height: 38, cursor: 'pointer', fontSize: '1.1rem', color: C.white, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
+        </div>
+      </div>
+      <div style={{ width: '100%', maxWidth: 1200, padding: '0 4px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: mob ? 1 : 2, marginBottom: 2, padding: '0 4px' }}>
+          {(mob ? DAYS_S : DAYS_F).map(d => (
+            <div key={d} style={{ textAlign: 'center', fontFamily: "'Oswald', sans-serif", fontSize: mob ? '0.62rem' : '0.72rem', fontWeight: 700, letterSpacing: 1, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', padding: '5px 0' }}>{d}</div>
+          ))}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: mob ? 1 : 2, padding: '0 4px' }}>
+          {cells.map((day, idx) => {
+            if (day === null) return <div key={`e${idx}`} style={{ background: 'rgba(255,255,255,0.015)', borderRadius: mob ? 4 : 7, minHeight: mob ? 50 : 100 }} />;
+            const devs   = evOnDay(day);
+            const today_ = isToday(day);
+            return (
+              <button key={idx} onClick={() => setSel(day)} style={{ background: today_ ? `rgba(211,32,39,0.12)` : 'rgba(255,255,255,0.03)', border: today_ ? `2px solid ${C.red}` : '1px solid rgba(255,255,255,0.06)', borderRadius: mob ? 5 : 8, padding: mob ? '3px 2px' : '5px 6px', cursor: 'pointer', minHeight: mob ? 50 : 100, display: 'flex', flexDirection: 'column', alignItems: 'stretch', textAlign: 'left' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                  <span style={{ fontFamily: "'Oswald', sans-serif", fontSize: mob ? '0.75rem' : '0.95rem', fontWeight: today_ ? 800 : 600, color: today_ ? C.red : 'rgba(255,255,255,0.75)' }}>{day}</span>
+                  {devs.length > 0 && <span style={{ fontSize: '0.48rem', fontWeight: 700, color: C.red }}>{devs.length}</span>}
+                </div>
+                {mob ? (
+                  <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', marginTop: 1 }}>
+                    {devs.slice(0, 4).map(ev => <div key={ev.id} style={{ width: 6, height: 6, borderRadius: '50%', background: areaColor(ev.area) }} />)}
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, overflow: 'hidden' }}>
+                    {devs.slice(0, 3).map(ev => (
+                      <div key={ev.id} style={{ background: areaColor(ev.area) + '22', borderLeft: `2px solid ${areaColor(ev.area)}`, borderRadius: 3, padding: '1px 4px', fontSize: '0.57rem', fontWeight: 600, color: 'rgba(255,255,255,0.78)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.title}</div>
+                    ))}
+                    {devs.length > 3 && <div style={{ fontSize: '0.46rem', color: C.grayText, fontWeight: 600, paddingLeft: 3 }}>+{devs.length - 3}</div>}
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {sel !== null && (
+        <EventModal day={sel} month={vm} year={vy} events={fe} onClose={() => setSel(null)} onAdd={async (p) => { await addEvent(p); }} onRemove={async (id) => { await removeEvent(id); }} />
+      )}
+    </section>
+  );
+}
+
+// ═══ EDITOR DE NOTAS ═══
+function NE({ eventId, note, onSave }) {
+  const [ed, setEd]     = useState(false);
+  const [draft, setDr]  = useState(note?.content ?? '');
+  const [saving, setSv] = useState(false);
+  const doSave = async () => { setSv(true); try { await onSave(eventId, draft); setEd(false); } finally { setSv(false); } };
+  if (ed) return (
+    <div>
+      <textarea value={draft} onChange={e => setDr(e.target.value)} placeholder="¿Qué aprendimos?" rows={3} style={{ width: '100%', background: C.gray, border: '1px solid #ddd', borderRadius: 8, padding: '10px 12px', fontFamily: "'Montserrat', sans-serif", fontSize: '16px', color: C.dark, outline: 'none', resize: 'vertical', lineHeight: 1.6 }} autoFocus />
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <button onClick={doSave} disabled={saving} style={{ background: saving ? '#aaa' : C.red, color: C.white, border: 'none', borderRadius: 6, padding: '7px 16px', cursor: saving ? 'wait' : 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: '0.68rem', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>{saving ? '...' : 'Guardar'}</button>
+        <button onClick={() => setEd(false)} style={{ background: C.gray, color: C.dark, border: '1px solid #ddd', borderRadius: 6, padding: '7px 14px', cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: '0.68rem', fontWeight: 600 }}>Cancelar</button>
+      </div>
+    </div>
+  );
+  return (
+    <div onClick={() => { setDr(note?.content ?? ''); setEd(true); }} style={{ cursor: 'pointer' }}>
+      {note?.content
+        ? <div style={{ fontSize: '0.75rem', color: C.dark, lineHeight: 1.65, opacity: 0.8, background: C.gray, borderRadius: 8, padding: '9px 12px' }}>{note.content}<div style={{ fontSize: '0.6rem', color: C.grayText, marginTop: 4, fontStyle: 'italic' }}>Tocá para editar</div></div>
+        : <div style={{ fontSize: '0.72rem', color: C.grayText, fontStyle: 'italic', background: C.gray, borderRadius: 8, padding: '9px 12px', border: '1px dashed #ddd' }}>Tocá para agregar notas...</div>
+      }
+    </div>
+  );
+}
+
+// ═══ ÁREAS ═══
+function Areas({ events, notes, saveNote }) {
+  const [open, setOpen] = useState(null);
+  return (
+    <section id="areas" style={{ padding: '48px 12px 58px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: C.offWhite }}>
+      <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.58rem', fontWeight: 600, letterSpacing: 5, textTransform: 'uppercase', color: C.grayMid, marginBottom: 6 }}>Nuestro Trabajo</div>
+      <h2 style={{ fontFamily: "'Oswald', sans-serif", fontSize: 'clamp(1.4rem,5vw,2.1rem)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 3, color: C.dark, margin: '0 0 8px', textAlign: 'center' }}>Áre<span style={{ color: C.red }}>as</span></h2>
+      <DS h={3} mb={10} />
+      <p style={{ fontSize: '0.72rem', color: C.grayText, marginBottom: 24, textAlign: 'center', maxWidth: 460 }}>Eventos agrupados por área. Editá las notas después de cada reunión.</p>
+      <div style={{ width: '100%', maxWidth: 900, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {AREAS.map(area => {
+          const ae = events.filter(e => e.area === area.id).sort((a, b) => b.date.localeCompare(a.date));
+          const io = open === area.id;
+          return (
+            <div key={area.id} style={{ borderRadius: 12, overflow: 'hidden', boxShadow: '0 3px 18px rgba(0,0,0,0.07)' }}>
+              <div onClick={() => setOpen(io ? null : area.id)} style={{ background: area.color, padding: '14px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: '1rem' }}>{area.icon}</span>
+                  <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: 'clamp(0.82rem,3vw,1rem)', fontWeight: 700, color: C.white, letterSpacing: 2, textTransform: 'uppercase' }}>{area.name}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ background: 'rgba(255,255,255,0.2)', color: C.white, fontFamily: "'Oswald', sans-serif", fontSize: '0.65rem', fontWeight: 700, padding: '2px 8px', borderRadius: 10 }}>{ae.length}</span>
+                  <span style={{ color: C.white, fontSize: '0.9rem', transition: 'transform 0.2s', transform: io ? 'rotate(180deg)' : 'rotate(0deg)' }}>▾</span>
+                </div>
+              </div>
+              {io && (
+                <div style={{ background: C.white, padding: '12px 14px 16px' }}>
+                  {ae.length === 0
+                    ? <div style={{ color: C.grayText, fontSize: '0.78rem', padding: '12px 0', textAlign: 'center' }}>No hay eventos. Agregá uno desde el calendario.</div>
+                    : ae.map((ev, i) => (
+                      <div key={ev.id} style={{ background: C.offWhite, borderRadius: 10, padding: '13px', marginBottom: i < ae.length - 1 ? 8 : 0, borderLeft: `3px solid ${areaColor(ev.area)}` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3, flexWrap: 'wrap', gap: 4 }}>
+                          <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.84rem', fontWeight: 600, color: C.dark }}>{ev.title}</div>
+                          <div style={{ fontSize: '0.62rem', color: C.grayText }}>{ev.date.split('-').reverse().join('/')} · {ev.time}{ev.location ? ` · 📍 ${ev.location}` : ''}</div>
+                        </div>
+                        {ev.description && <div style={{ fontSize: '0.7rem', color: C.dark, opacity: 0.5, marginBottom: 6 }}>{ev.description}</div>}
+                        <div style={{ marginTop: 6, borderTop: '1px solid #eee', paddingTop: 6 }}>
+                          <div style={{ fontSize: '0.58rem', fontWeight: 700, color: areaColor(ev.area), fontFamily: "'Oswald', sans-serif", letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>Notas</div>
+                          <NE eventId={ev.id} note={notes[ev.id]} onSave={saveNote} />
+                        </div>
+                      </div>
+                    ))
+                  }
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// ═══ FOOTER ═══
+function Footer({ onShare }) {
+  return (
+    <footer style={{ background: C.dark3, padding: '28px 16px', textAlign: 'center' }}>
+      <DS h={3} mb={14} />
+      <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.85rem', fontWeight: 600, letterSpacing: 3, textTransform: 'uppercase', color: C.white }}>Comisión de la <span style={{ color: C.red }}>Juventud</span></div>
+      <div style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.22)', marginTop: 5, letterSpacing: 2 }}>Club Atlético River Plate · 2026</div>
+      <button onClick={onShare} style={{ marginTop: 14, background: `linear-gradient(135deg, ${C.red}, ${C.redDark})`, color: C.white, border: 'none', borderRadius: 8, padding: '10px 24px', cursor: 'pointer', fontFamily: "'Oswald', sans-serif", fontSize: '0.68rem', fontWeight: 600, letterSpacing: 2, textTransform: 'uppercase', boxShadow: `0 3px 16px ${C.red}33` }}>Compartir Link</button>
+    </footer>
+  );
+}
+
+// ═══ APP ═══
+function App() {
+  const [page,    setPage]    = useState('inicio');
+  const [events,  setEvents]  = useState([]);
+  const [notes,   setNotes]   = useState({});
+  const [loading, setLoading] = useState(true);
+  const [msg,     setMsg]     = useState('');
+  const [synced,  setSynced]  = useState(false);
+
+  const reload = useCallback(() => {
+    return dbLoad().then(({ events: evs, notes: ns }) => {
+      setEvents(evs);
+      setNotes(ns);
+      setSynced(HAS_SB);
+    });
+  }, []);
+
+  // Carga inicial
+  useEffect(() => {
+    reload().finally(() => setLoading(false));
+
+    // Realtime (solo si Supabase está configurado)
+    if (HAS_SB) {
+      const ch = sbClient.channel('cj-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'events' },      reload)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'event_notes' }, reload)
+        .subscribe();
+      return () => sbClient.removeChannel(ch);
+    }
+  }, [reload]);
+
+  const addEvent = async (payload) => {
+    try {
+      const newEv = await dbAddEvent(payload);
+      const updated = [...events, newEv];
+      setEvents(updated);
+      lsSave(updated, notes);
+    } catch(err) {
+      console.error('addEvent error:', err);
+      // fallback: guardar igual en estado local
+      const newEv = { ...payload, id: `ev_${Date.now()}` };
+      const updated = [...events, newEv];
+      setEvents(updated);
+      lsSave(updated, notes);
+      setMsg('Guardado localmente. Subí a GitHub para sincronizar con todos.');
+      setTimeout(() => setMsg(''), 5000);
+    }
+  };
+
+  const removeEvent = async (id) => {
+    try { await dbRemoveEvent(id); } catch(err) { console.error('removeEvent error:', err); }
+    const updated = events.filter(e => e.id !== id);
+    setEvents(updated);
+    lsSave(updated, notes);
+  };
+
+  const saveNote = async (eventId, content) => {
+    try { await dbSaveNote(eventId, content, notes[eventId]); } catch(err) { console.error('saveNote error:', err); }
+    const updatedNotes = { ...notes, [eventId]: { content } };
+    setNotes(updatedNotes);
+    lsSave(events, updatedNotes);
+  };
+
+  const scrollTo = (id) => {
+    setPage(id);
+    if (id !== 'inicio') setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }), 80);
+    else window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const share = async () => {
+    const url = window.location.href;
+    try {
+      if (navigator.share) await navigator.share({ title: 'Comisión de la Juventud - River', url });
+      else { await navigator.clipboard.writeText(url); setMsg('Link copiado!'); setTimeout(() => setMsg(''), 3000); }
+    } catch { try { await navigator.clipboard.writeText(url); setMsg('Link copiado!'); setTimeout(() => setMsg(''), 3000); } catch { prompt('Copiá:', url); } }
+  };
+
+  if (loading) return (
+    <div style={{ minHeight: '100vh', background: C.dark3, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
+      <div style={{ width: 52, height: 52, borderRadius: '50%', background: C.red, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Oswald', sans-serif", fontWeight: 800, fontSize: '1.1rem', color: C.white, boxShadow: `0 4px 24px ${C.red}55` }}>CJ</div>
+      <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', letterSpacing: 3, textTransform: 'uppercase' }}>Cargando...</div>
+    </div>
+  );
+
+  return (
+    <div style={{ fontFamily: "'Montserrat', sans-serif", background: C.dark3, minHeight: '100vh' }}>
+      <Nav active={page} onNav={scrollTo} synced={synced} />
+      <Hero onNav={scrollTo} />
+      <Inst />
+      <Cal events={events} addEvent={addEvent} removeEvent={removeEvent} />
+      <Areas events={events} notes={notes} saveNote={saveNote} />
+      <Footer onShare={share} />
+      {msg && <div style={{ position: 'fixed', bottom: 22, left: '50%', transform: 'translateX(-50%)', background: C.dark, color: C.white, padding: '11px 22px', borderRadius: 10, fontSize: '0.78rem', fontWeight: 600, zIndex: 300, boxShadow: '0 4px 18px rgba(0,0,0,0.4)', border: `1px solid ${C.red}44`, whiteSpace: 'nowrap' }}>{msg}</div>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
