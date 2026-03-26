@@ -114,7 +114,7 @@ const initials  = (name) => {
 
 // ═══ BASE DE DATOS ═══
 const HAS_SB  = Boolean(window.SUPABASE_URL && window.SUPABASE_KEY);
-const sbClient = HAS_SB ? supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY) : null;
+const sbClient = HAS_SB ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY) : null;
 const LS_KEY  = 'cj_river_v2';
 
 async function dbLoad() {
@@ -598,13 +598,12 @@ function App() {
       lsSave(updated, notes);
     } catch(err) {
       console.error('addEvent error:', err);
-      // fallback: guardar igual en estado local
       const newEv = { ...payload, id: `ev_${Date.now()}` };
       const updated = [...events, newEv];
       setEvents(updated);
       lsSave(updated, notes);
-      setMsg('Guardado localmente. Subí a GitHub para sincronizar con todos.');
-      setTimeout(() => setMsg(''), 5000);
+      setMsg('Error Supabase: ' + (err?.message || JSON.stringify(err)));
+      setTimeout(() => setMsg(''), 8000);
     }
   };
 
